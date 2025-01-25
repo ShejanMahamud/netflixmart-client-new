@@ -94,13 +94,23 @@ const LoginForm: React.FC = () => {
     },
   });
 
+  const handleGoogleLogin = () => {
+    const apiKey = import.meta.env.VITE_NFBD_API_KEY; 
+    const serverUrl = import.meta.env.VITE_SERVER_URL;
+    
+    const authUrl = `${serverUrl}/auth/google?state=${encodeURIComponent(apiKey)}`;
+
+    window.open(authUrl, "_self");
+  };
+  
+
   if (systemDetailsLoading) return <Loading />;
   if (systemDetailsError) return <Error />;
 
   if (token) navigate("/user/products");
-  const handleGoogleLogin = () => {
-    window.open(`${import.meta.env.VITE_SERVER_URL}/auth/google`, "_self");
-  };
+
+
+
   return (
     <div className="w-full p-12 rounded-lg shadow-md max-w-md mx-auto">
       <div className="flex lg:hidden md:hidden items-center justify-center w-full">

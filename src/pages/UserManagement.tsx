@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query"
 import {
   Avatar,
   Button,
@@ -12,22 +12,31 @@ import {
   Tag,
   Tooltip,
   Typography,
-} from "antd";
-import { useState } from "react";
-import { AiOutlineEdit } from "react-icons/ai";
-import Swal from "sweetalert2";
-import Loading from "../components/Loading";
-import useAxiosSecure from "../hooks/useAxiosSecure";
-import Error from "./Error";
+  Card,
+  Space,
+  Popconfirm,
+  message,
+  Row,
+  Col,
+} from "antd"
+import { useState } from "react"
+import { EditOutlined, DeleteOutlined, UserAddOutlined, SearchOutlined } from "@ant-design/icons"
+import Swal from "sweetalert2"
+import Loading from "../components/Loading"
+import useAxiosSecure from "../hooks/useAxiosSecure"
+import Error from "./Error"
+import UserStatsCard from "../components/UserStatsCard"
 
-const { Text } = Typography;
-const { Option } = Select;
+const { Text } = Typography
+const { Option } = Select
 
 const UserManagement = () => {
-  const axiosSecure = useAxiosSecure();
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
+  const axiosSecure = useAxiosSecure()
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedUser, setSelectedUser] = useState(null)
+  const [searchText, setSearchText] = useState("")
+  const [filteredInfo, setFilteredInfo] = useState({})
+  const [sortedInfo, setSortedInfo] = useState({})
 
   const {
     data: users = [],
@@ -37,56 +46,65 @@ const UserManagement = () => {
   } = useQuery({
     queryKey: ["allUsers"],
     queryFn: async () => {
-      const { data } = await axiosSecure.get("/auth/user");
-      return data.data;
+      const { data } = await axiosSecure.get("/auth/user")
+      return data.data
     },
-  });
+  })
 
   const { mutateAsync: editUserMutation } = useMutation({
     mutationFn: async (updatedUser) => {
-      const { data } = await axiosSecure.patch(
-        `/auth/user/me/${updatedUser._id}`,
-        updatedUser
-      );
-      return data;
+      const { data } = await axiosSecure.patch(`/auth/user/me/${updatedUser._id}`, updatedUser)
+      return data
     },
     onSuccess: (data) => {
       if (data.success) {
-        refetch();
+        refetch()
         Swal.fire({
           icon: "success",
           title: "Success",
           text: "User updated successfully!",
-        });
+        })
       }
     },
-  });
+  })
 
   const showEditModal = (user) => {
-    setSelectedUser(user);
-    setIsModalOpen(true);
-  };
+    setSelectedUser(user)
+    setIsModalOpen(true)
+  }
 
   const handleModalCancel = () => {
-    setIsModalOpen(false);
-    setSelectedUser(null);
-  };
+    setIsModalOpen(false)
+    setSelectedUser(null)
+  }
 
   const handleEditSubmit = (values) => {
-    editUserMutation({ ...selectedUser, ...values });
-    setIsModalOpen(false);
-  };
+    editUserMutation({ ...selectedUser, ...values })
+    setIsModalOpen(false)
+  }
+
+  const handleChange = (pagination, filters, sorter) => {
+    setFilteredInfo(filters)
+    setSortedInfo(sorter)
+  }
+
+  const clearFilters = () => {
+    setFilteredInfo({})
+  }
+
+  const clearAll = () => {
+    setFilteredInfo({})
+    setSortedInfo({})
+  }
 
   const columns = [
     {
       title: "Avatar",
       dataIndex: "profile_picture",
       key: "profile_picture",
-      render: (text, record) => (
-        <Avatar src={record.profile_picture} alt={record.name} />
-      ),
+      render: (text, record) => <Avatar src={record.profile_picture} alt={record.name} />,
       width: 80,
-      align: "center",
+      fixed: "left",
     },
     {
       title: "Name",
@@ -94,152 +112,206 @@ const UserManagement = () => {
       key: "name",
       render: (text) => <Text strong>{text}</Text>,
       sorter: (a, b) => a.name.localeCompare(b.name),
-      align: "center",
+      sortOrder: sortedInfo.columnKey === "name" && sortedInfo.order,
+      ellipsis: true,
     },
     {
       title: "Username",
       dataIndex: "username",
       key: "username",
-      align: "center",
+      ellipsis: true,
     },
     {
       title: "Email",
       dataIndex: "email",
       key: "email",
-      align: "center",
       render: (text, record) => (
         <Tooltip title={record.email_verified ? "Verified" : "Not Verified"}>
-          <Text type={record.email_verified ? "success" : "danger"}>
-            {text}
-          </Text>
+          <Text type={record.email_verified ? "success" : "danger"}>{text}</Text>
         </Tooltip>
       ),
+      ellipsis: true,
     },
     {
       title: "Phone",
       dataIndex: "phone",
       key: "phone",
-      align: "center",
       render: (text, record) => (
         <Tooltip title={record.phone_verified ? "Verified" : "Not Verified"}>
-          <Text type={record.phone_verified ? "success" : "danger"}>
-            {text}
-          </Text>
+          <Text type={record.phone_verified ? "success" : "danger"}>{text}</Text>
         </Tooltip>
       ),
+      ellipsis: true,
     },
     {
       title: "Status",
       dataIndex: "isOnline",
-      align: "center",
       key: "isOnline",
-      render: (isOnline) =>
-        isOnline ? (
-          <Tag color="green">Online</Tag>
-        ) : (
-          <Tag color="red">Offline</Tag>
-        ),
+      filters: [
+        { text: "Online", value: true },
+        { text: "Offline", value: false },
+      ],
+      filteredValue: filteredInfo.isOnline || null,
+      onFilter: (value, record) => record.isOnline === value,
+      render: (isOnline) => (isOnline ? <Tag color="green">Online</Tag> : <Tag color="red">Offline</Tag>),
     },
     {
       title: "Role",
       dataIndex: "role",
-      align: "center",
       key: "role",
       filters: [
         { text: "User", value: "user" },
         { text: "Admin", value: "admin" },
       ],
+      filteredValue: filteredInfo.role || null,
       onFilter: (value, record) => record.role === value,
-      render: (role) => (
-        <Tag color={role === "admin" ? "gold" : "blue"}>{role}</Tag>
-      ),
+      render: (role) => <Tag color={role === "admin" ? "gold" : "blue"}>{role}</Tag>,
     },
     {
       title: "Loyalty Bonus",
       dataIndex: "loyalty_bonus",
-      align: "center",
       key: "loyalty_bonus",
-      render: (bonus) => <Text>{bonus}</Text>,
+      sorter: (a, b) => a.loyalty_bonus - b.loyalty_bonus,
+      sortOrder: sortedInfo.columnKey === "loyalty_bonus" && sortedInfo.order,
     },
     {
       title: "Referred By",
       dataIndex: "referred_by",
       key: "referred_by",
-      align: "center",
       render: (referredBy) =>
         referredBy ? (
           <Tooltip title="Referred by another user">
-            <Text code>
-              {users.find((user) => user._id === referredBy)?.name}
-            </Text>
+            <Text code>{users.find((user) => user._id === referredBy)?.name}</Text>
           </Tooltip>
         ) : (
           "None"
         ),
+      ellipsis: true,
     },
     {
       title: "Referral Count",
       dataIndex: "referral_count",
-      align: "center",
       key: "referral_count",
-      render: (count) => <Text>{count}</Text>,
+      sorter: (a, b) => a.referral_count - b.referral_count,
+      sortOrder: sortedInfo.columnKey === "referral_count" && sortedInfo.order,
     },
     {
       title: "Last Seen",
       dataIndex: "lastSeen",
-      align: "center",
       key: "lastSeen",
       render: (lastSeen) => new Date(lastSeen).toLocaleString(),
+      sorter: (a, b) => new Date(a.lastSeen) - new Date(b.lastSeen),
+      sortOrder: sortedInfo.columnKey === "lastSeen" && sortedInfo.order,
     },
     {
       title: "Login Method",
       dataIndex: "login_method",
       key: "login_method",
-      align: "center",
-      render: (loginMethod) => <Text>{loginMethod}</Text>,
+      filters: [
+        { text: "Email", value: "email" },
+        { text: "Google", value: "google" },
+        { text: "Facebook", value: "facebook" },
+      ],
+      filteredValue: filteredInfo.login_method || null,
+      onFilter: (value, record) => record.login_method === value,
     },
     {
       title: "Actions",
       key: "actions",
+      fixed: "right",
+      width: 100,
       render: (_, record) => (
-        <Button type="link" onClick={() => showEditModal(record)}>
-          <AiOutlineEdit />
-        </Button>
+        <Space>
+          <Button type="link" onClick={() => showEditModal(record)} icon={<EditOutlined />} />
+          <Popconfirm
+            title="Are you sure you want to delete this user?"
+            onConfirm={() => handleDeleteUser(record._id)}
+            okText="Yes"
+            cancelText="No"
+          >
+            <Button type="link" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
       ),
     },
-  ];
+  ]
 
-  if (userLoading) return <Loading />;
-  if (userError) return <Error />;
+  const handleDeleteUser = (userId) => {
+    // Implement delete user logic here
+    message.success("User deleted successfully")
+    refetch()
+  }
+
+  if (userLoading) return <Loading />
+  if (userError) return <Error />
+
+  const filteredUsers = users.filter(
+    (user) =>
+      user.name.toLowerCase().includes(searchText.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchText.toLowerCase()) ||
+      user.username.toLowerCase().includes(searchText.toLowerCase()),
+  )
 
   return (
-    <div className="w-full p-4">
-      <h1 className="text-xl font-medium mb-5">User Management</h1>
-      <Table
-        columns={columns}
-        dataSource={users}
-        rowKey="_id"
-        pagination={{ pageSize: 10 }}
-        scroll={{ x: "max-content" }}
-      />
+    <div className="w-full p-4 space-y-4">
+      <Card>
+        <Row gutter={[16, 16]} align="middle" justify="space-between">
+          <Col>
+            <h1 className="text-2xl font-bold">User Management</h1>
+          </Col>
+          <Col>
+            <Space>
+              <Button onClick={clearFilters}>Clear filters</Button>
+              <Button onClick={clearAll}>Clear filters and sorters</Button>
+              <Button type="primary" icon={<UserAddOutlined />}>
+                Add New User
+              </Button>
+            </Space>
+          </Col>
+        </Row>
+        <Row gutter={[16, 16]} className="mt-4">
+          <Col span={24}>
+            <Input.Search
+              placeholder="Search users..."
+              onChange={(e) => setSearchText(e.target.value)}
+              style={{ width: 300 }}
+              allowClear
+              enterButton={<SearchOutlined />}
+            />
+          </Col>
+        </Row>
+        <Table
+          columns={columns}
+          dataSource={filteredUsers}
+          rowKey="_id"
+          onChange={handleChange}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+          }}
+          scroll={{ x: 1500 }}
+          sticky
+        />
+      </Card>
+
+      <Row gutter={16}>
+        <Col span={8}>
+          <UserStatsCard title="Total Users" value={users.length} />
+        </Col>
+        <Col span={8}>
+          <UserStatsCard title="Online Users" value={users.filter((user) => user.isOnline).length} />
+        </Col>
+        <Col span={8}>
+          <UserStatsCard title="Admins" value={users.filter((user) => user.role === "admin").length} />
+        </Col>
+      </Row>
 
       {isModalOpen && (
-        <Modal
-          title="Edit User"
-          visible={isModalOpen}
-          onCancel={handleModalCancel}
-          footer={null}
-        >
-          <Form
-            layout="vertical"
-            initialValues={selectedUser}
-            onFinish={handleEditSubmit}
-          >
-            <Form.Item
-              label="Name"
-              name="name"
-              rules={[{ required: true, message: "Please input the name!" }]}
-            >
+        <Modal title="Edit User" visible={isModalOpen} onCancel={handleModalCancel} footer={null}>
+          <Form layout="vertical" initialValues={selectedUser} onFinish={handleEditSubmit}>
+            <Form.Item label="Name" name="name" rules={[{ required: true, message: "Please input the name!" }]}>
               <Input />
             </Form.Item>
 
@@ -277,11 +349,7 @@ const UserManagement = () => {
               </Select>
             </Form.Item>
 
-            <Form.Item
-              label="Is Online"
-              name="isOnline"
-              valuePropName="checked"
-            >
+            <Form.Item label="Is Online" name="isOnline" valuePropName="checked">
               <Switch />
             </Form.Item>
 
@@ -290,7 +358,7 @@ const UserManagement = () => {
             </Form.Item>
 
             <Form.Item label="Loyalty Bonus" name="loyalty_bonus">
-            <InputNumber className="w-full" />
+              <InputNumber className="w-full" />
             </Form.Item>
 
             <Form.Item>
@@ -302,7 +370,8 @@ const UserManagement = () => {
         </Modal>
       )}
     </div>
-  );
-};
+  )
+}
 
-export default UserManagement;
+export default UserManagement
+

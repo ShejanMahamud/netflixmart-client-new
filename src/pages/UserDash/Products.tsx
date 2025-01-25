@@ -1,16 +1,15 @@
 import { ShoppingCartOutlined } from "@ant-design/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  Button,
   Card,
-  Checkbox,
   notification,
   Pagination,
   Select,
   Space,
   Typography,
 } from "antd";
-import React, { useEffect, useState } from "react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Loading from "../../components/Loading";
 import useAxiosSecure from "../../hooks/useAxiosSecure";
@@ -165,6 +164,7 @@ const ProductsUser: React.FC = () => {
       });
       return;
     }
+
     const productPrice =
       product.product_type === "simple"
         ? product.price ?? 0
@@ -175,7 +175,17 @@ const ProductsUser: React.FC = () => {
     const walletDeduction = useWalletBalance[product._id]
       ? Math.min(walletBalance, productPrice)
       : 0;
+
     const amountToPay = productPrice - walletDeduction;
+
+    console.log({
+      productPrice,
+      walletBalance,
+      walletDeduction,
+      amountToPay,
+      selectedPaymentMethod: selectedPaymentMethods[product._id],
+      useWalletBalance: useWalletBalance[product._id],
+    });
 
     const purchasedProduct: PurchaseData = {
       product: product._id,
@@ -190,18 +200,21 @@ const ProductsUser: React.FC = () => {
       remaining_amount: amountToPay,
     };
 
-    if (
-      selectedPaymentMethods[product._id] === "wallet" &&
-      walletDeduction === productPrice
-    ) {
-      handlePurchase({ ...purchasedProduct, payment_method: "wallet" });
+    if (selectedPaymentMethods[product._id] === "wallet") {
+      if (walletBalance >= productPrice) {
+        handlePurchase({ ...purchasedProduct, payment_method: "wallet" });
+      } else {
+        notification.error({
+          message: "Insufficient Balance",
+          description: "You don't have enough balance in your wallet.",
+        });
+      }
     } else if (selectedPaymentMethods[product._id] === "bkash") {
       handlePurchase({ ...purchasedProduct, payment_method: "bkash" });
     } else {
       notification.error({
         message: "Payment Error",
-        description:
-          "Please select a valid payment method or ensure enough balance.",
+        description: "Please select a valid payment method.",
       });
     }
   };
@@ -234,12 +247,8 @@ const ProductsUser: React.FC = () => {
             )?.price || 0;
 
       const walletBalance = walletReports.wallet_balance;
-      const walletDeduction = useWalletBalance[product._id]
-        ? Math.min(walletBalance, productPrice)
-        : 0;
-      const amountToPay = productPrice - walletDeduction;
 
-      if (amountToPay === 0) {
+      if (walletBalance >= productPrice) {
         setSelectedPaymentMethods((prev) => ({
           ...prev,
           [product._id]: "wallet",
@@ -251,21 +260,15 @@ const ProductsUser: React.FC = () => {
         }));
       }
     });
-  }, [
-    products,
-    walletReports,
-    useWalletBalance,
-    selectedVariants,
-    selectedPaymentMethods,
-  ]);
+  }, [products, walletReports, selectedVariants]);
 
   if (isLoading || walletLoading) return <Loading />;
   if (walletError) return <Error />;
 
   return (
     <div className="w-full">
-      <h1 className="text-2xl font-semibold text-gray-900">Products</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
+      <h1 className="text-2xl font-semibold text-gray-900 px-10">Products</h1>
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6 p-6">
         {products.map((product: Product) => {
           const productPrice =
             product.product_type === "simple"
@@ -284,23 +287,27 @@ const ProductsUser: React.FC = () => {
               key={product._id}
               hoverable
               cover={
-                <img
-                  alt={product.title}
-                  src={product.image}
-                  className="h-[200px] w-full object-cover relative"
-                />
+                <>
+                  <div className="relative">
+                    <img
+                      alt={product.title}
+                      src={product.image || "/placeholder.svg"}
+                      className="h-[200px] w-full object-cover"
+                    />
+                    <div
+                      className="absolute bottom-2 right-2 bg-black text-white px-4 py-2 rounded-lg text-sm"
+                      style={{ zIndex: 10 }}
+                    >
+                      ৳{productPrice}
+                    </div>
+                  </div>
+                </>
               }
-              className="shadow-lg rounded-lg overflow-hidden"
+              className="shadow-lg rounded-lg overflow-hidden px-0"
             >
-              <div
-                className="absolute top-2 right-2 bg-blue-500 text-white text-xs font-semibold py-1 px-3 rounded-full shadow-md"
-                style={{ zIndex: 10 }}
-              >
-                {product?.category?.category ?? "N/A"}
-              </div>
               <Card.Meta
                 title={
-                  <Text className="text-xl font-semibold text-gray-900">
+                  <Text className="text-xl font-semibold text-gray-900 px-0">
                     {product.title}
                   </Text>
                 }
@@ -313,48 +320,34 @@ const ProductsUser: React.FC = () => {
               <div className="mt-4 flex flex-col items-start">
                 {product.product_type === "simple" ? (
                   <>
-                    <Text className="text-xl font-semibold text-gray-900">
-                      ৳{product.price || 0}
-                    </Text>
-                    <Text className="text-gray-500 mt-1">
-                      Reward Balance: ৳{walletBalance}
-                    </Text>
-                    <Text className="text-gray-500 mt-1">
-                      Amount to Pay: ৳{amountToPay}
-                    </Text>
-                    <Checkbox
-                      checked={useWalletBalance[product._id] || false}
-                      onChange={(e) =>
-                        handleWalletCheckboxChange(product._id, e)
-                      }
-                    >
-                      Use Reward Balance
-                    </Checkbox>
                     <Space direction="vertical" className="mt-2 w-full">
                       <Select
                         onChange={(value) =>
                           handlePaymentMethodChange(product._id, value)
                         }
-                        className="w-full "
+                        className="w-full"
                         value={selectedPaymentMethods[product._id] || "bkash"}
                       >
-                        <Option value="bkash">Pay with bKash</Option>
+                        <Option value="bkash">bKash</Option>
                         <Option
                           value="wallet"
-                          disabled={walletBalance < (product.price ?? 0)}
+                          disabled={walletBalance < productPrice}
                         >
-                          Pay with Reward (Balance: ৳{walletBalance})
+                          Reward (Balance: ৳{walletBalance})
                         </Option>
                       </Select>
                     </Space>
-                    <Button
-                      type="primary"
-                      icon={<ShoppingCartOutlined />}
-                      className="mt-2 bg-black text-white hover:bg-black w-full"
+                    <button
+                      className="mt-2 bg-black text-white hover:bg-black w-full py-2 rounded-md flex items-center justify-center gap-2"
                       onClick={() => handleBuyNow(product)}
+                      disabled={
+                        selectedPaymentMethods[product._id] === "wallet" &&
+                        walletBalance < productPrice
+                      }
                     >
-                      Buy Now
-                    </Button>
+                      <ShoppingCartOutlined />
+                      <span>Pay Now</span>
+                    </button>
                   </>
                 ) : (
                   <>
@@ -372,21 +365,7 @@ const ProductsUser: React.FC = () => {
                         </Option>
                       ))}
                     </Select>
-                    <Text className="text-gray-500 mt-1">
-                      Reward Balance: ৳{walletBalance}
-                    </Text>
-                    <Text className="text-gray-500 mt-1">
-                      Amount to Pay: ৳{amountToPay}
-                    </Text>
-                    <Checkbox
-                      checked={useWalletBalance[product._id] || false}
-                      onChange={(e) =>
-                        handleWalletCheckboxChange(product._id, e)
-                      }
-                    >
-                      Use Reward Balance
-                    </Checkbox>
-                    <Space direction="vertical" className="mt-2">
+                    <Space direction="vertical" className="mt-2 w-full">
                       <Select
                         onChange={(value) =>
                           handlePaymentMethodChange(product._id, value)
@@ -403,14 +382,29 @@ const ProductsUser: React.FC = () => {
                         </Option>
                       </Select>
                     </Space>
-                    <Button
+                    <button
+                      className="mt-2 bg-black text-white hover:bg-black w-full py-2 rounded-md flex items-center justify-center gap-2"
+                      onClick={() => handleBuyNow(product)}
+                      disabled={
+                        selectedPaymentMethods[product._id] === "wallet" &&
+                        walletBalance < productPrice
+                      }
+                    >
+                      <ShoppingCartOutlined />
+                      <span>Pay Now</span>
+                    </button>
+                    {/* <Button
                       type="primary"
                       icon={<ShoppingCartOutlined />}
                       className="mt-2 bg-black text-white hover:bg-black w-full"
                       onClick={() => handleBuyNow(product)}
+                      disabled={
+                        selectedPaymentMethods[product._id] === "wallet" &&
+                        walletBalance < productPrice
+                      }
                     >
-                      Buy Now
-                    </Button>
+                      Pay Now
+                    </Button> */}
                   </>
                 )}
               </div>

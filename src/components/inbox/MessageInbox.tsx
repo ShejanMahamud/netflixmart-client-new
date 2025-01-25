@@ -40,12 +40,11 @@ function MessageInbox() {
   // Only navigate once user data has loaded
   useEffect(() => {
     if (user?._id) {
-      setIsUserLoading(false); // Set loading to false once user data is loaded
+      setIsUserLoading(false); // Stop loading once user data is available
     } else {
-      navigate("/overview");
+      navigate("/overview"); // Redirect if user data is not available
     }
   }, [user, navigate]);
-
   const {
     data: buble,
     isLoading,
@@ -264,7 +263,7 @@ function MessageInbox() {
       </Modal>
 
       {/* Messages Area */}
-      <main className="flex-grow overflow-y-auto scrollbar p-4 bg-[url('https://i.pinimg.com/originals/e6/29/25/e62925d2af795db245dffbc42e05296b.png')]">
+      <main className="flex-grow overflow-y-auto scrollbar p-4 bg-[url('https://i.ibb.co.com/YdHHpN3/768ded5ffbef90faa338761be1c5633d91cc35e3.jpg')] bg-opacity-5">
         {filteredMessages.map((message) => (
           <Message key={message._id} message={message} />
         ))}

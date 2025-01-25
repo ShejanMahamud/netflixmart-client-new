@@ -147,7 +147,7 @@ const ConverPeople = ({ user }) => {
 
   // Check if the user profile belongs to the authenticated user
   const isMyProfile = user._id === authUser?._id;
-  console.log(authUser);
+  // console.log(authUser);
   return (
     <div
       className={`pl-4 flex justify-start items-center space-x-3 py-2 hover:bg-[#2A3942] ${
@@ -178,7 +178,7 @@ const ConverPeople = ({ user }) => {
       <div className="flex justify-between items-center pb-1 w-full">
         <div className="overflow-hidden">
           <p className="font-semibold truncate">
-            {isMyProfile ? "Me" : user.name}
+            {user?.role === "admin" ? "NetflixMart Admin" : user.name}
           </p>
           <p
             className={`text-[#8696A0] text-sm truncate ${

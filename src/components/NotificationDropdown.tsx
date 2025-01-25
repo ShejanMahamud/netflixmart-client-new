@@ -5,13 +5,12 @@ import {
   InfoCircleOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import {
   Badge,
   Button,
   Divider,
   Dropdown,
-  Menu,
   Spin,
   Tooltip,
   Typography,
@@ -25,19 +24,23 @@ const NotificationDropdown: React.FC = () => {
   const user = getDecodedToken();
 
   const {
-    data: notifications = [],
-    isLoading: notificationsLoading,
-    error: notificationsError,
-    refetch: refetchNotifications,
-  } = useQuery({
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    refetch,
+  } = useInfiniteQuery({
     queryKey: ["notifications"],
-    queryFn: async () => {
-      const { data } = await axiosSecure.get(`/notification/${user.id}`);
-      return data.data;
+    queryFn: async ({ pageParam = 1 }) => {
+      const { data } = await axiosSecure.get(
+        `/notification/${user.id}?page=${pageParam}&limit=10`
+      );
+      return data;
     },
+    getNextPageParam: (lastPage) => lastPage.nextPage ?? false,
     enabled: !!user.id,
     refetchOnWindowFocus: false,
-    refetchInterval: 5000,
   });
 
   const { mutateAsync: markAsRead } = useMutation({
@@ -47,27 +50,27 @@ const NotificationDropdown: React.FC = () => {
       );
       return data;
     },
-    onSuccess: () => refetchNotifications(),
+    onSuccess: () => refetch(),
   });
 
   const { mutateAsync: markAllAsRead } = useMutation({
     mutationFn: async (id) => {
       await axiosSecure.patch(`/notification/mark-all-as-read/${id}`);
     },
-    onSuccess: () => refetchNotifications(),
+    onSuccess: () => refetch(),
   });
 
   const getNotificationColor = (read: boolean, type: string) => {
-    if (read) return "#f9f9f9"; // Light gray for read
+    if (read) return "#f9f9f9";
     switch (type) {
       case "warning":
-        return "#fff8e1"; // Soft yellow for warning
+        return "#fff8e1";
       case "error":
-        return "#ffe0e0"; // Light red for error
+        return "#ffe0e0";
       case "info":
-        return "#e6f7ff"; // Light blue for info
+        return "#e6f7ff";
       default:
-        return "#e8f5e9"; // Light green for success
+        return "#e8f5e9";
     }
   };
 
@@ -84,8 +87,26 @@ const NotificationDropdown: React.FC = () => {
     }
   };
 
+  const notifications = data?.pages.flatMap((page) => page.data) || [];
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop <= clientHeight + 50 && hasNextPage) {
+      fetchNextPage();
+    }
+  };
+
   const menu = (
-    <Menu style={{ width: 320, padding: 0 }}>
+    <div
+      style={{
+        width: 320,
+        padding: 0,
+        backgroundColor: "#fff",
+        border: "1px solid #e8e8e8",
+        borderRadius: 4,
+        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
+      }}
+    >
       <div
         style={{
           display: "flex",
@@ -112,15 +133,20 @@ const NotificationDropdown: React.FC = () => {
         </Button>
       </div>
       <Divider style={{ margin: 0 }} />
-
-      {notificationsLoading ? (
-        <div style={{ textAlign: "center", padding: "20px" }}>
-          <Spin />
-        </div>
-      ) : notifications.length > 0 ? (
-        <div style={{ maxHeight: "300px", overflowY: "auto" }}>
-          {notifications.map((notif) => (
-            <Menu.Item
+      <div
+        style={{
+          maxHeight: "300px",
+          overflowY: "auto",
+        }}
+        onScroll={handleScroll}
+      >
+        {isLoading ? (
+          <div style={{ textAlign: "center", padding: "20px" }}>
+            <Spin />
+          </div>
+        ) : notifications.length > 0 ? (
+          notifications.map((notif) => (
+            <div
               key={notif._id}
               onClick={() => markAsRead(notif._id)}
               style={{
@@ -134,17 +160,10 @@ const NotificationDropdown: React.FC = () => {
                 alignItems: "center",
                 gap: "10px",
                 position: "relative",
-                boxShadow: notif.read ? "none" : "0 1px 3px rgba(0, 0, 0, 0.1)",
+                boxShadow: notif.read
+                  ? "none"
+                  : "0 1px 3px rgba(0, 0, 0, 0.1)",
               }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.backgroundColor = "#f0f0f0")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.backgroundColor = getNotificationColor(
-                  notif.read,
-                  notif.type
-                ))
-              }
             >
               <Tooltip title={notif.read ? "Read" : "Unread"}>
                 <div style={{ marginRight: 10 }}>
@@ -167,37 +186,23 @@ const NotificationDropdown: React.FC = () => {
                   }}
                 />
               )}
-            </Menu.Item>
-          ))}
-        </div>
-      ) : (
-        <Menu.Item style={{ textAlign: "center", padding: "20px" }}>
-          <Typography.Text type="secondary">
-            <InfoCircleOutlined style={{ marginRight: "5px" }} />
-            No new notifications
-          </Typography.Text>
-        </Menu.Item>
-      )}
-
-      <Divider style={{ margin: "8px 0" }} />
-      {/* <Menu.Item style={{ textAlign: "center", padding: "10px 15px" }}>
-        <a
-          href="/notifications"
-          style={{
-            color: "#1890ff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: "bold",
-          }}
-        >
-          <Typography.Text style={{ marginRight: "5px" }}>
-            See all notifications
-          </Typography.Text>
-          <RightOutlined />
-        </a>
-      </Menu.Item> */}
-    </Menu>
+            </div>
+          ))
+        ) : (
+          <div style={{ textAlign: "center", padding: "20px" }}>
+            <Typography.Text type="secondary">
+              <InfoCircleOutlined style={{ marginRight: "5px" }} />
+              No new notifications
+            </Typography.Text>
+          </div>
+        )}
+        {isFetchingNextPage && (
+          <div style={{ textAlign: "center", padding: "10px" }}>
+            <Spin />
+          </div>
+        )}
+      </div>
+    </div>
   );
 
   return (
@@ -208,9 +213,6 @@ const NotificationDropdown: React.FC = () => {
           overflowCount={9}
           style={{
             boxShadow: "0 0 0 2px #fff",
-            animation: notifications.some((n) => !n.read)
-              ? "pulse 1s infinite"
-              : "none",
           }}
         >
           <BellOutlined style={{ fontSize: 24, color: "#595959" }} />

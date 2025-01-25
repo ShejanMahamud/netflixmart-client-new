@@ -1,8 +1,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+  Alert,
+  Badge,
   Button,
   DatePicker,
+  Descriptions,
   Form,
+  Input,
   message,
   Modal,
   notification,
@@ -12,6 +16,7 @@ import {
   Table,
   Tag,
   Tooltip,
+  Typography,
 } from "antd";
 import { Option } from "antd/es/mentions";
 import { TableProps } from "antd/es/table";
@@ -23,6 +28,7 @@ import { FiPlus } from "react-icons/fi";
 import {
   IoCardOutline,
   IoCartOutline,
+  IoEye,
   IoEyeOutline,
   IoPauseCircleOutline,
   IoReload,
@@ -32,7 +38,8 @@ import Loading from "../components/Loading";
 import useAxiosSecure from "../hooks/useAxiosSecure";
 import { getDecodedToken } from "../utils/auth";
 import { decrypt } from "../utils/encryption";
-// const { Text, Title } = Typography;
+import { CopyOutlined } from '@ant-design/icons';
+const { Text, Title } = Typography;
 
 interface Credentials {
   _id: string;
@@ -79,6 +86,7 @@ const Orders = () => {
   const [selectedStatus, setSelectedStatus] = useState<string | undefined>(
     undefined
   );
+  const [detailsModal, setDetailsModal] = useState(false)
   // const [viewModal, setViewModal] = useState(false);
   const [openModal, setOpenModal] = useState(false);
   const [changeCredentials, setChangeCredentials] = useState(false);
@@ -88,7 +96,7 @@ const Orders = () => {
   const [selectedPurchase, setSelectedPurchase] = useState<DataType | null>(
     null
   );
-
+  const [searchText,setSearchText] = useState<string>("")
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [currentCredentials, setCurrentCredentials] = useState<{
     username: string;
@@ -301,14 +309,7 @@ const Orders = () => {
       render: (_, record) => {
         return (
           <Tooltip title={record?.order_id ?? record?._id}>
-            <span
-              style={{
-                display: "inline-block",
-                maxWidth: "100px",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
+            <span className="opacity-80 font-medium"
             >
               {record?.order_id ?? record?._id}
             </span>
@@ -316,13 +317,6 @@ const Orders = () => {
         );
       },
       key: "_id",
-    },
-    {
-      title: "Order Date",
-      align: "center",
-      dataIndex: "createdAt",
-      key: "createdAt",
-      render: (createdAt) => new Date(createdAt).toLocaleDateString(),
     },
     {
       title: "Product",
@@ -373,70 +367,18 @@ const Orders = () => {
       },
     },
     {
-      title: "Total Price",
-      dataIndex: "total_price",
-      key: "total_price",
-      render: (price) => `৳${price}.00`,
-    },
-    {
-      title: "Payment Status",
+      title: (
+        <div className="flex items-center justify-center gap-2">
+          <IoEye />
+          <h1>Details</h1>
+        </div>
+      ),
+      key: "details",
       align: "center",
-      dataIndex: "status",
-      key: "status",
-      render: (_, record) => {
-        let color;
-        switch (record.payment_status) {
-          case "pending":
-            color = "orange";
-            break;
-          case "completed":
-            color = "green";
-            break;
-          case "cancelled":
-            color = "red";
-            break;
-          case "expired":
-            color = "gray";
-            break;
-          default:
-            color = "volcano";
-        }
-
-        return <Tag color={color}>{record.payment_status.toUpperCase()}</Tag>;
-      },
-    },
-    {
-      title: "Delivery Status",
-      align: "center",
-      dataIndex: "delivery_status",
-      key: "delivery_status",
-      render: (_, record) => {
-        let color;
-        switch (record.delivery_status) {
-          case "pending":
-            color = "orange";
-            break;
-          case "delivered":
-            color = "green";
-            break;
-          case "cancelled":
-            color = "red";
-            break;
-          default:
-            color = "volcano";
-        }
-
-        return <Tag color={color}>{record.delivery_status.toUpperCase()}</Tag>;
-      },
-    },
-    {
-      title: "Payment Method",
-      align: "center",
-      render: (_, record) => {
-        const { payment_method } = record;
-        return payment_method.charAt(0).toUpperCase() + payment_method.slice(1);
-      },
-      key: "payment_method",
+      render: (_, record) => <button onClick={()=> {
+        setDetailsModal(true);
+        setSelectedPurchase(record);
+      }} className="bg-orange-400 px-4 py-1 rounded-lg font-medium text-sm text-white">View</button>,
     },
     {
       title: "Action",
@@ -479,7 +421,7 @@ const Orders = () => {
                     {user?.role === "admin" ? (
                       <IoEyeOutline />
                     ) : (
-                      "View Credentials"
+                      "Credentials"
                     )}
                   </Button>
                 </Tooltip>
@@ -702,6 +644,7 @@ const Orders = () => {
               ? order.delivery_status === selectedDeliveryStatus
               : true
           )
+          .filter((order: DataType) => searchText ? order.order_id.toLowerCase().includes(searchText.toLowerCase()) : true)
           .filter((order: DataType) =>
             selectedStatus ? order.payment_status === selectedStatus : true
           )
@@ -752,8 +695,40 @@ const Orders = () => {
         style={{ width: 300 }}
         placeholder={["Start Date", "End Date"]}
       />
+      <Input placeholder="Search by Order ID" style={{ width: 200 }} onChange={(e)=>setSearchText(e.target.value)}/>
     </Space>
   );
+
+  const getStatusTag = (status, type) => {
+    const statusMap = {
+      subscription_status: {
+        active: { color: "green", label: "ACTIVE" },
+        inactive: { color: "red", label: "INACTIVE" },
+      },
+      payment_status: {
+        completed: { color: "green", label: "PAID" },
+        cancelled: { color: "red", label: "UNPAID" },
+        pending: { color: "orange", label: "PENDING" },
+        expired: { color: "gray", label: "EXPIRED" },
+      },
+      delivery_status: {
+        delivered: { color: "blue", label: "DELIVERED" },
+        pending: { color: "orange", label: "PENDING" },
+        canceled: { color: "red", label: "CANCELED" },
+      },
+    };
+  
+    const statusInfo = statusMap[type][status?.toLowerCase()] || {
+      color: "gray",
+      label: "UNKNOWN",
+    };
+  
+    return (
+      <Tag color={statusInfo.color} style={{ textTransform: "uppercase" }}>
+        {statusInfo.label}
+      </Tag>
+    );
+  };
 
   if (ordersLoading || credentialsLoading || adminOrdersLoading)
     return <Loading />;
@@ -774,65 +749,83 @@ const Orders = () => {
         pagination={{ pageSize: 10, showSizeChanger: true }}
         bordered
       />
-      <Modal
-        title="View Credentials"
-        open={isModalVisible && currentCredentials !== null}
-        onCancel={handleCancel}
-        footer={null}
-        centered
-        width={400}
-      >
-        {currentCredentials?.username && currentCredentials?.password ? (
-          <div style={{ padding: "20px", textAlign: "left" }}>
-            <div style={{ marginBottom: "15px" }}>
-              <strong style={{ fontSize: "16px" }}>Username:</strong>
-              <p style={{ margin: "5px 0", fontSize: "14px" }}>
-                {decrypt(currentCredentials.username)}
-              </p>
-              <Button
-                type="default"
-                onClick={() => {
-                  navigator.clipboard.writeText(
-                    decrypt(currentCredentials.username)
-                  );
-                  message.success("Username copied to clipboard!");
-                }}
-              >
-                Copy Username
-              </Button>
-            </div>
-            <div>
-              <strong style={{ fontSize: "16px" }}>Password:</strong>
-              <p
-                style={{
-                  margin: "5px 0",
-                  fontSize: "14px",
-                  wordBreak: "break-all",
-                }}
-              >
-                {decrypt(currentCredentials.password)}
-              </p>
-              <Button
-                type="default"
-                onClick={() => {
-                  navigator.clipboard.writeText(
-                    decrypt(currentCredentials.password)
-                  );
-                  message.success("Password copied to clipboard!");
-                }}
-              >
-                Copy Password
-              </Button>
-            </div>
+
+<Modal
+  title={<Title level={4}>View Credentials</Title>}
+  open={isModalVisible && currentCredentials !== null}
+  onCancel={handleCancel}
+  footer={null}
+  centered
+  width={450}
+>
+  {currentCredentials?.username && currentCredentials?.password ? (
+    <div style={{ padding: "20px" }}>
+      <Space direction="vertical" size="large" style={{ width: "100%" }}>
+        {/* Username Section */}
+        <div>
+          <Text strong style={{ fontSize: "16px" }}>Username:</Text>
+          <div style={{ display: "flex", alignItems: "center", marginTop: "5px" }}>
+            <Text code style={{ flexGrow: 1 }}>
+              {decrypt(currentCredentials.username)}
+            </Text>
+            <Button
+              type="default"
+              icon={<CopyOutlined />}
+              onClick={() => {
+                navigator.clipboard.writeText(decrypt(currentCredentials.username));
+                message.success("Username copied to clipboard!");
+              }}
+            >
+              Copy
+            </Button>
           </div>
-        ) : (
-          <div style={{ padding: "20px", textAlign: "center" }}>
-            <p style={{ fontSize: "16px", color: "rgba(0, 0, 0, 0.45)" }}>
-              No credentials available.
-            </p>
+        </div>
+
+        {/* Password Section */}
+        <div>
+          <Text strong style={{ fontSize: "16px" }}>Password:</Text>
+          <div style={{ display: "flex", alignItems: "center", marginTop: "5px" }}>
+            <Text code style={{ flexGrow: 1, wordBreak: "break-word" }}>
+              {decrypt(currentCredentials.password)}
+            </Text>
+            <Button
+              type="default"
+              icon={<CopyOutlined />}
+              onClick={() => {
+                navigator.clipboard.writeText(decrypt(currentCredentials.password));
+                message.success("Password copied to clipboard!");
+              }}
+            >
+              Copy
+            </Button>
           </div>
-        )}
-      </Modal>
+        </div>
+
+        {/* Rules Section */}
+        <Alert
+          message="Important Rules"
+          description={
+            <ul style={{ paddingLeft: "20px" }}>
+              <li>Do not share these credentials with anyone.</li>
+              <li>Change the password immediately after first login.</li>
+              <li>Use a strong, unique password for this account.</li>
+              <li>Contact support if you suspect any unauthorized access.</li>
+            </ul>
+          }
+          type="warning"
+          showIcon
+        />
+      </Space>
+    </div>
+  ) : (
+    <div style={{ padding: "20px", textAlign: "center" }}>
+      <Text type="secondary" style={{ fontSize: "16px" }}>
+        No credentials available.
+      </Text>
+    </div>
+  )}
+</Modal>;
+
       <Modal
         title="Add Credentials"
         footer={null}
@@ -944,205 +937,51 @@ const Orders = () => {
           <Option value="bkash">Bkash</Option>
         </Select>
       </Modal>
-      {/* <Modal
-        open={viewModal}
-        footer={null}
-        onCancel={() => setViewModal(false)}
-        title={
-          <div style={{ fontSize: "20px", fontWeight: "600", color: "#333" }}>
-            Purchase Details -{" "}
-            {selectedPurchase?.product?.title ||
-              selectedPurchase?.product?.variants[0]?.name}
-          </div>
-        }
-        width={750}
-        bodyStyle={{
-          backgroundColor: "#f0f2f5",
-          padding: "30px",
-          borderRadius: "12px",
-          boxShadow: "0px 10px 20px rgba(0,0,0,0.1)",
-        }}
-        style={{ borderRadius: "12px", overflow: "hidden" }}
-      >
-        <Card
-          bordered={false}
-          style={{
-            padding: "25px",
-            borderRadius: "10px",
-            backgroundColor: "#fff",
-          }}
-        >
 
-          <Row gutter={16} style={{ marginBottom: "30px" }}>
-            <Col span={10}>
-              <img
-                src={selectedPurchase?.product?.image}
-                alt={selectedPurchase?.product?.title}
-                style={{
-                  width: "100%",
-                  borderRadius: "10px",
-                  objectFit: "cover",
-                  boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.1)",
-                }}
-              />
-            </Col>
-            <Col span={14}>
-              <Title level={3} style={{ color: "#333", marginBottom: "8px" }}>
-                {selectedPurchase?.product?.title}
-              </Title>
-              <Text
-                type="secondary"
-                style={{
-                  fontSize: "15px",
-                  marginBottom: "10px",
-                  display: "block",
-                }}
-              >
-                {selectedPurchase?.product?.short_description}
-              </Text>
-              <Divider style={{ margin: "12px 0" }} />
-              <Space direction="vertical" size="small">
-                <Text>
-                  <InfoCircleOutlined
-                    style={{ color: "#1890ff", marginRight: "5px" }}
-                  />{" "}
-                  <Text strong>Category:</Text>{" "}
-                  {selectedPurchase?.product?.category}
-                </Text>
-                <Text>
-                  <UserOutlined
-                    style={{ color: "#1890ff", marginRight: "5px" }}
-                  />{" "}
-                  <Text strong>Delivery Type:</Text>{" "}
-                  {selectedPurchase?.product?.delivery_type}
-                </Text>
-                <Text>
-                  <DollarOutlined
-                    style={{ color: "#52c41a", marginRight: "5px" }}
-                  />{" "}
-                  <Text strong>Price:</Text> ${selectedPurchase?.total_price}
-                </Text>
-              </Space>
-            </Col>
-          </Row>
 
-          <div
-            style={{
-              backgroundColor: "#fafafa",
-              padding: "20px",
-              borderRadius: "8px",
-              marginBottom: "20px",
-            }}
-          >
-            <Title level={5} style={{ marginBottom: "10px", color: "#333" }}>
-              User Information
-            </Title>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Text>
-                  <Text strong>Name:</Text> {selectedPurchase?.user?.name}
-                </Text>
-                <br />
-                <Text>
-                  <Text strong>Email:</Text> {selectedPurchase?.user?.email}
-                </Text>
-              </Col>
-            </Row>
-          </div>
-
-          <div
-            style={{
-              backgroundColor: "#fafafa",
-              padding: "20px",
-              borderRadius: "8px",
-              marginBottom: "20px",
-            }}
-          >
-            <Title level={5} style={{ marginBottom: "10px", color: "#333" }}>
-              Subscription Information
-            </Title>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Text>
-                  <CalendarOutlined style={{ marginRight: "5px" }} />{" "}
-                  <Text strong>Status:</Text>{" "}
-                  {selectedPurchase?.subscription_status}
-                </Text>
-                <br />
-                <Text>
-                  <CalendarOutlined style={{ marginRight: "5px" }} />{" "}
-                  <Text strong>Start Date:</Text>{" "}
-                  {new Date(
-                    selectedPurchase?.subscription_start_date
-                  ).toLocaleDateString()}
-                </Text>
-                <br />
-                <Text>
-                  <CalendarOutlined style={{ marginRight: "5px" }} />{" "}
-                  <Text strong>End Date:</Text>{" "}
-                  {new Date(
-                    selectedPurchase?.subscription_end_date
-                  ).toLocaleDateString()}
-                </Text>
-              </Col>
-              <Col span={12}>
-                <Text>
-                  <InfoCircleOutlined
-                    style={{ color: "#faad14", marginRight: "5px" }}
-                  />{" "}
-                  <Text strong>Payment Status:</Text>{" "}
-                  {selectedPurchase?.payment_status}
-                </Text>
-                <br />
-                <Text>
-                  <DollarOutlined
-                    style={{ color: "#52c41a", marginRight: "5px" }}
-                  />{" "}
-                  <Text strong>Payment Method:</Text>{" "}
-                  {selectedPurchase?.payment_method}
-                </Text>
-              </Col>
-            </Row>
-          </div>
-
-          {selectedPurchase?.credentials && (
-            <div
-              style={{
-                backgroundColor: "#fafafa",
-                padding: "20px",
-                borderRadius: "8px",
-              }}
-            >
-              <Title level={5} style={{ marginBottom: "10px", color: "#333" }}>
-                Credentials
-              </Title>
-              <Row>
-                <Col span={12}>
-                  <Text>
-                    <Text strong>Username:</Text>{" "}
-                    {selectedPurchase?.credentials?.username}
-                  </Text>
-                </Col>
-                <Col span={12}>
-                  <Text>
-                    <Text strong>Password:</Text>{" "}
-                    {selectedPurchase?.credentials?.password}
-                  </Text>
-                </Col>
-              </Row>
-            </div>
-          )}
-
-          <Divider style={{ margin: "20px 0" }} />
-          <Row justify="end">
-            <Col>
-              <Text strong style={{ fontSize: "16px", color: "#333" }}>
-                Total: ${selectedPurchase?.total_price}
-              </Text>
-            </Col>
-          </Row>
-        </Card>
-      </Modal> */}
+      <Modal
+  title={<Title level={3}>Purchase Details</Title>}
+  open={detailsModal}
+  onCancel={() => setDetailsModal(false)}
+  footer={null}
+>
+  <Space direction="vertical" size="large" style={{ width: "100%" }}>
+    <Descriptions
+      bordered
+      column={1}
+      size="middle"
+      labelStyle={{ fontWeight: "bold", fontSize: "14px" }}
+      contentStyle={{ fontSize: "14px" }}
+    >
+      <Descriptions.Item label="Order ID">
+        <Text code>{selectedPurchase?.order_id}</Text>
+      </Descriptions.Item>
+      <Descriptions.Item label="Order Date">
+        {new Date(selectedPurchase?.createdAt).toLocaleDateString()}
+      </Descriptions.Item>
+      <Descriptions.Item label="Subscription Status">
+        {getStatusTag(selectedPurchase?.subscription_status, "subscription_status")}
+      </Descriptions.Item>
+      <Descriptions.Item label="Payment Status">
+        {getStatusTag(selectedPurchase?.payment_status, "payment_status")}
+      </Descriptions.Item>
+      <Descriptions.Item label="Delivery Status">
+        {getStatusTag(selectedPurchase?.delivery_status, "delivery_status")}
+      </Descriptions.Item>
+      <Descriptions.Item label="Payment Method">
+        <Text type="secondary">{selectedPurchase?.payment_method}</Text>
+      </Descriptions.Item>
+      <Descriptions.Item label="Total Price">
+        <Text strong style={{ fontSize: "16px" }}>
+          ৳{selectedPurchase?.total_price}.00
+        </Text>
+      </Descriptions.Item>
+      <Descriptions.Item label="Product">
+        <Text underline>{selectedPurchase?.product?.title}</Text>
+      </Descriptions.Item>
+    </Descriptions>
+  </Space>
+</Modal>
     </div>
   );
 };
